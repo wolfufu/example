@@ -1,0 +1,25 @@
+# Backend
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environments
+.venv
+.env
+
+# Linters and Typings
+.mypy_cache
+
+# Frontend
+# Окружение
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# Node.js
+node_modules
