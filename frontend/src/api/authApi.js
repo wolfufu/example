@@ -78,3 +78,11 @@ export const loadSession = () => {
 export const clearSession = () => {
   localStorage.removeItem('auth_session');
 };
+
+export const fetchMe = async (token) => {
+    const res = await fetch(`${API_URL}/auth/me`, {
+        headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) throw new Error('Ошибка получения профиля');
+    return res.json();
+};

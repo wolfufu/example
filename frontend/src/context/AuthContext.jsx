@@ -7,6 +7,7 @@ import {
   clearSession,
 } from '../api/authApi';
 
+
 const AuthContext = createContext(null);
 
 export function AuthProvider({ children }) {

@@ -11,6 +11,7 @@ class UserRead(BaseModel):
     name: str
     email: EmailStr
     is_active: bool
+    is_superuser: bool
 
     model_config = ConfigDict(from_attributes=True)
 
