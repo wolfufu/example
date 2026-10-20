@@ -14,31 +14,57 @@ from backend.models.users import User
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/login")
 
+
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     return bcrypt.checkpw(
-        plain_password.encode("utf-8"), 
-        hashed_password.encode("utf-8")
+        plain_password.encode("utf-8"),
+        hashed_password.encode("utf-8"),
     )
+
 
 def get_password_hash(password: str) -> str:
     salt = bcrypt.gensalt()
     return bcrypt.hashpw(password.encode("utf-8"), salt).decode("utf-8")
 
-def create_access_token(
-        data: dict[str, Any], 
-        expires_delta: timedelta | None = None,
+
+def _create_token(
+    data: dict[str, Any],
+    expires_delta: timedelta,
+    token_type: str,
 ) -> str:
     to_encode = data.copy()
-    if expires_delta:
-        expire = datetime.now(UTC) + expires_delta
-    else:
-        expire = datetime.now(UTC) + timedelta(minutes=15)
-    to_encode.update({"exp": expire})
+    to_encode.update({
+        "exp": datetime.now(UTC) + expires_delta,
+        "type": token_type,
+    })
     return jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
+
+
+def create_access_token(
+    data: dict[str, Any],
+    expires_delta: timedelta | None = None,
+) -> str:
+    return _create_token(
+        data,
+        expires_delta or timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES),
+        "access",
+    )
+
+
+def create_refresh_token(
+    data: dict[str, Any],
+    expires_delta: timedelta | None = None,
+) -> str:
+    return _create_token(
+        data,
+        expires_delta or timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS),
+        "refresh",
+    )
+
 
 async def get_current_user(
     token: Annotated[str, Depends(oauth2_scheme)],
-    db: Annotated[AsyncSession, Depends(get_db)]
+    db: Annotated[AsyncSession, Depends(get_db)],
 ) -> User:
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
@@ -47,30 +73,33 @@ async def get_current_user(
     )
     try:
         payload = jwt.decode(
-            token, 
-            settings.SECRET_KEY, 
-            algorithms=[settings.ALGORITHM]
+            token,
+            settings.SECRET_KEY,
+            algorithms=[settings.ALGORITHM],
         )
-        email: str | None = payload.get("sub")
-        if email is None:
-            raise credentials_exception
     except jwt.PyJWTError:
+        raise credentials_exception
+    
+    if payload.get("type") != "access":
+        raise credentials_exception
+
+    email: str | None = payload.get("sub")
+    if email is None:
         raise credentials_exception
 
     result = await db.execute(select(User).where(User.email == email))
     user = result.scalar_one_or_none()
-    
     if user is None:
         raise credentials_exception
     return user
 
 
 async def get_current_superuser(
-    current_user: Annotated[User, Depends(get_current_user)]
+    current_user: Annotated[User, Depends(get_current_user)],
 ) -> User:
     if not current_user.is_superuser:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Недостаточно прав. Требуются права администратора.",
+            detail="Not enough rights. Administrator rights are required.",
         )
     return current_user

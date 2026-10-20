@@ -6,6 +6,11 @@ export default function WelcomePage() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
 
+  const handleLogout = async () => {
+    await logout();
+    navigate('/login', { replace: true });
+  };
+
   return (
     <div className="welcome">
       <div className="welcome__card">
@@ -41,7 +46,7 @@ export default function WelcomePage() {
               Перейти в админ-панель
             </Button>
           )}
-          <Button variant="ghost" onClick={logout}>
+          <Button variant="ghost" onClick={handleLogout}>
             Выйти из аккаунта
           </Button>
         </div>

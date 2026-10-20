@@ -2,11 +2,10 @@ import { createContext, useCallback, useContext, useEffect, useState } from 'rea
 import {
   loginRequest,
   registerRequest,
-  saveSession,
-  loadSession,
-  clearSession,
+  logoutRequest,
+  refreshRequest,
+  fetchMe,
 } from '../api/authApi';
-
 
 const AuthContext = createContext(null);
 
@@ -15,18 +14,38 @@ export function AuthProvider({ children }) {
   const [token, setToken] = useState(null);
   const [initializing, setInitializing] = useState(true);
 
-  // Восстановление сессии при старте приложения
+  // Восстановление сессии при старте: пробуем refresh по HttpOnly cookie
   useEffect(() => {
-    const session = loadSession();
-    if (session?.user && session?.token) {
-      setUser(session.user);
-      setToken(session.token);
-    }
-    setInitializing(false);
+    let cancelled = false;
+
+    (async () => {
+      try {
+        const newToken = await refreshRequest(); // 401 → гость, выходим молча
+        const me = await fetchMe(newToken);
+        if (cancelled) return;
+        setToken(newToken);
+        setUser(me);
+      } catch {
+        /* нет cookie / истёк — пользователь не авторизован */
+      } finally {
+        if (!cancelled) setInitializing(false);
+      }
+    })();
+
+    return () => { cancelled = true; };
+  }, []);
+
+  // Глобальный выход по событию от axios (refresh не удался)
+  useEffect(() => {
+    const handler = () => {
+      setUser(null);
+      setToken(null);
+    };
+    window.addEventListener('auth:logout', handler);
+    return () => window.removeEventListener('auth:logout', handler);
   }, []);
 
   const applySession = useCallback((session) => {
-    saveSession(session);
     setUser(session.user);
     setToken(session.token);
     return session.user;
@@ -42,8 +61,8 @@ export function AuthProvider({ children }) {
     [applySession]
   );
 
-  const logout = useCallback(() => {
-    clearSession();
+  const logout = useCallback(async () => {
+    await logoutRequest(); // бэкенд удалит refresh-cookie, память очистится
     setUser(null);
     setToken(null);
   }, []);

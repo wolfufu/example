@@ -1,88 +1,102 @@
 // src/api/authApi.js
-
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
-// 1. Вход (Login) - делаем два запроса: получаем токен, затем данные юзера
+// ---------- Access-token хранится ТОЛЬКО в памяти ----------
+let accessToken = null;
+export const setAccessToken = (t) => { accessToken = t; };
+export const getAccessToken = () => accessToken;
+export const clearAccessToken = () => { accessToken = null; };
+
+// ---------- Login ----------
 export const loginRequest = async ({ email, password }) => {
   const formData = new URLSearchParams();
   formData.append('username', email);
   formData.append('password', password);
 
-  const loginRes = await fetch(`${API_URL}/auth/login`, {
+  const res = await fetch(`${API_URL}/auth/login`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: formData,
+    credentials: 'include', // ← получаем HttpOnly refresh-cookie
   });
 
-  if (!loginRes.ok) {
-    throw new Error('Неверный email или пароль');
-  }
+  if (!res.ok) throw new Error('Неверный email или пароль');
 
-  const { access_token } = await loginRes.json();
+  const { access_token } = await res.json();
+  setAccessToken(access_token);
 
-  // Сразу запрашиваем профиль пользователя
-  const meRes = await fetch(`${API_URL}/auth/me`, {
-    headers: { Authorization: `Bearer ${access_token}` },
-  });
-
-  if (!meRes.ok) throw new Error('Ошибка получения профиля');
-  const user = await meRes.json();
-
+  const user = await fetchMe(access_token);
   return { user, token: access_token };
 };
 
-// 2. Регистрация (Register) - после регистрации сразу логиним
+// ---------- Register ----------
 export const registerRequest = async (data) => {
   const regRes = await fetch(`${API_URL}/auth/register`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    // ДОБАВЛЕНО ПОЛЕ name:
-    body: JSON.stringify({ 
-        name: data.name, 
-        email: data.email, 
-        password: data.password 
+    body: JSON.stringify({
+      name: data.name,
+      email: data.email,
+      password: data.password,
     }),
   });
 
   if (!regRes.ok) {
-    const errorData = await regRes.json();
-    
-    // FastAPI при ошибке 422 возвращает массив объектов в detail.
-    // Нам нужно вытащить из него текст ошибки, чтобы не было [object Object]
+    const errorData = await regRes.json().catch(() => ({}));
     let errorMessage = 'Ошибка при регистрации';
-    
-    if (errorData.detail && Array.isArray(errorData.detail)) {
-      // Собираем все сообщения об ошибках через запятую
-      errorMessage = errorData.detail.map(err => err.msg).join(', ');
+    if (Array.isArray(errorData.detail)) {
+      errorMessage = errorData.detail.map((err) => err.msg).join(', ');
     } else if (errorData.detail) {
       errorMessage = errorData.detail;
     }
-    
     throw new Error(errorMessage);
   }
 
-  // Автоматически входим после успешной регистрации
   return loginRequest({ email: data.email, password: data.password });
 };
 
-// 3. Управление сессией (LocalStorage)
-export const saveSession = (session) => {
-  localStorage.setItem('auth_session', JSON.stringify(session));
-};
+// ---------- Refresh (единый promise — защита от гонок) ----------
+let refreshPromise = null;
 
-export const loadSession = () => {
-  const session = localStorage.getItem('auth_session');
-  return session ? JSON.parse(session) : null;
-};
-
-export const clearSession = () => {
-  localStorage.removeItem('auth_session');
-};
-
-export const fetchMe = async (token) => {
-    const res = await fetch(`${API_URL}/auth/me`, {
-        headers: { Authorization: `Bearer ${token}` },
+export const refreshRequest = () => {
+  if (!refreshPromise) {
+    refreshPromise = (async () => {
+      const res = await fetch(`${API_URL}/auth/refresh`, {
+        method: 'POST',
+        credentials: 'include', // ← refresh-cookie едет автоматически
+      });
+      if (!res.ok) {
+        clearAccessToken();
+        throw new Error('Не удалось обновить сессию');
+      }
+      const { access_token } = await res.json();
+      setAccessToken(access_token);
+      return access_token;
+    })().finally(() => {
+      refreshPromise = null;
     });
-    if (!res.ok) throw new Error('Ошибка получения профиля');
-    return res.json();
+  }
+  return refreshPromise;
+};
+
+// ---------- Logout ----------
+export const logoutRequest = async () => {
+  clearAccessToken();
+  try {
+    await fetch(`${API_URL}/auth/logout`, {
+      method: 'POST',
+      credentials: 'include', // ← бэкенд удалит cookie
+    });
+  } catch {
+    /* сеть недоступна — локально уже разлогинены */
+  }
+};
+
+// ---------- Профиль ----------
+export const fetchMe = async (token) => {
+  const res = await fetch(`${API_URL}/auth/me`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) throw new Error('Ошибка получения профиля');
+  return res.json();
 };
