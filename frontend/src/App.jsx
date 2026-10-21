@@ -4,6 +4,7 @@ import PublicOnlyRoute from './components/PublicOnlyRoute';
 import LoginPage from './pages/auth/LoginPage';
 import RegisterPage from './pages/auth/RegisterPage';
 import WelcomePage from './pages/auth/WelcomePage';
+import SecurityPage from './pages/auth/SecurityPage';
 
 // Импорты для админки (создайте их согласно предыдущему ответу)
 import AdminLayout from './components/AdminLayout';

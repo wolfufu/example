@@ -24,7 +24,7 @@ def build_provisioning_uri(secret: str, email: str) -> str:
 def build_qr_base64(provisioning_uri: str) -> str:
     img = qrcode.make(provisioning_uri)
     buf = io.BytesIO()
-    img.save(buf, format="PNG")
+    img.save(buf, format="PNG")  # type: ignore[call-arg]
     return "data:image/png;base64," + base64.b64encode(buf.getvalue()).decode()
 
 
