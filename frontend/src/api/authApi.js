@@ -17,18 +17,85 @@ export const loginRequest = async ({ email, password }) => {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: formData,
-    credentials: 'include', // ← получаем HttpOnly refresh-cookie
+    credentials: 'include',
   });
 
   if (!res.ok) throw new Error('Неверный email или пароль');
 
-  const { access_token } = await res.json();
-  setAccessToken(access_token);
+  const data = await res.json();
 
-  const user = await fetchMe(access_token);
-  return { user, token: access_token };
+  // 2FA включена — токенов пока нет
+  if (data.mfa_required) {
+    return { mfaRequired: true, challengeToken: data.challenge_token };
+  }
+
+  setAccessToken(data.access_token);
+  const user = await fetchMe(data.access_token);
+  return { user, token: data.access_token };
 };
 
+// Новый вызов после ввода TOTP-кода
+export const verifyMfaChallengeRequest = async ({ challengeToken, code }) => {
+  const res = await fetch(`${API_URL}/auth/2fa/challenge/verify`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ challenge_token: challengeToken, code }),
+    credentials: 'include',
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || 'Неверный код');
+  }
+
+  const data = await res.json();
+  setAccessToken(data.access_token);
+  const user = await fetchMe(data.access_token);
+  return { user, token: data.access_token };
+};
+
+// Настройка 2FA
+export const setup2faRequest = async (token) => {
+  const res = await fetch(`${API_URL}/auth/2fa/setup`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || 'Не удалось начать настройку 2FA');
+  }
+  return res.json(); // { secret, provisioning_uri, qr_code_base64 }
+};
+
+export const verify2faRequest = async ({ token, code }) => {
+  const res = await fetch(`${API_URL}/auth/2fa/verify`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ code }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || 'Неверный код');
+  }
+};
+
+export const disable2faRequest = async ({ token, code }) => {
+  const res = await fetch(`${API_URL}/auth/2fa/disable`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ code }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || 'Неверный код');
+  }
+};
 // ---------- Register ----------
 export const registerRequest = async (data) => {
   const regRes = await fetch(`${API_URL}/auth/register`, {
@@ -100,3 +167,4 @@ export const fetchMe = async (token) => {
   if (!res.ok) throw new Error('Ошибка получения профиля');
   return res.json();
 };
+

@@ -1,12 +1,6 @@
-from datetime import timedelta
 from typing import Annotated
 
 import jwt
-from fastapi import APIRouter, Cookie, Depends, HTTPException, Response, status
-from fastapi.security import OAuth2PasswordRequestForm
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
-
 from backend.auth.auth import (
     create_access_token,
     create_refresh_token,
@@ -14,10 +8,22 @@ from backend.auth.auth import (
     get_password_hash,
     verify_password,
 )
+from backend.auth.two_factor import (
+    create_mfa_challenge,
+)
 from backend.config import settings
 from backend.database.database import get_db
 from backend.models.users import User
-from backend.schemas.users import Token, UserCreate, UserRead
+from backend.schemas.users import (
+    LoginResponse,
+    Token,
+    UserCreate,
+    UserRead,
+)
+from fastapi import APIRouter, Cookie, Depends, HTTPException, Response, status
+from fastapi.security import OAuth2PasswordRequestForm
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -66,12 +72,12 @@ async def register(
     return UserRead.model_validate(new_user)
 
 
-@router.post("/login", response_model=Token)
+@router.post("/login", response_model=LoginResponse)
 async def login(
     response: Response,
     form_data: Annotated[OAuth2PasswordRequestForm, Depends()],
     db: Annotated[AsyncSession, Depends(get_db)],
-) -> Token:
+) -> LoginResponse:
     result = await db.execute(select(User).where(User.email == form_data.username))
     user = result.scalar_one_or_none()
 
@@ -82,20 +88,26 @@ async def login(
             headers={"WWW-Authenticate": "Bearer"},
         )
 
+    if user.is_2fa_enabled:
+        challenge = await create_mfa_challenge(user.id)
+        return LoginResponse(mfa_required=True, challenge_token=challenge)
+
     access_token = create_access_token({"sub": user.email})
     refresh_token = create_refresh_token({"sub": user.email})
     _set_refresh_cookie(response, refresh_token)
 
-    return Token(access_token=access_token, token_type="bearer")
+    return LoginResponse(
+        access_token=access_token,
+        token_type="bearer",
+        mfa_required=False,
+    )
 
 
 @router.post("/refresh", response_model=Token)
 async def refresh(
     response: Response,
     db: Annotated[AsyncSession, Depends(get_db)],
-    refresh_token: Annotated[
-        str | None, Cookie(alias=REFRESH_COOKIE_NAME)
-    ] = None,
+    refresh_token: Annotated[str | None, Cookie(alias=REFRESH_COOKIE_NAME)] = None,
 ) -> Token:
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,

@@ -11,6 +11,9 @@ wheels/
 .venv
 .env
 
+# VS Code
+.vscode
+
 # Linters and Typings
 .mypy_cache
 

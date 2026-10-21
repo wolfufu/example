@@ -5,6 +5,8 @@ import {
   logoutRequest,
   refreshRequest,
   fetchMe,
+  verifyMfaChallengeRequest,   // ← добавили
+  getAccessToken,               // ← добавили
 } from '../api/authApi';
 
 const AuthContext = createContext(null);
@@ -51,10 +53,26 @@ export function AuthProvider({ children }) {
     return session.user;
   }, []);
 
-  const login = useCallback(
-    async (credentials) => applySession(await loginRequest(credentials)),
-    [applySession]
-  );
+  const refreshUser = useCallback(async () => {
+    const t = getAccessToken();
+    if (!t) return null;
+    const me = await fetchMe(t);
+    setUser(me);
+    return me;
+  }, []);
+  
+
+  const login = useCallback(async (credentials) => {
+    const result = await loginRequest(credentials);
+    // Если 2FA — НЕ логиним, возвращаем challenge наружу
+    if (result.mfaRequired) return result;
+    return applySession(result);
+  }, [applySession]);
+
+  const completeMfaLogin = useCallback(async ({ challengeToken, code }) => {
+    const session = await verifyMfaChallengeRequest({ challengeToken, code });
+    return applySession(session);
+  }, [applySession]);
 
   const register = useCallback(
     async (data) => applySession(await registerRequest(data)),
@@ -75,6 +93,8 @@ export function AuthProvider({ children }) {
     login,
     register,
     logout,
+    refreshUser,        // ← добавили
+    completeMfaLogin,   // ← добавили
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

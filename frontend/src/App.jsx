@@ -40,6 +40,11 @@ export default function App() {
         }
       />
 
+      <Route
+        path="/settings/security"
+        element={<ProtectedRoute><SecurityPage /></ProtectedRoute>}
+      />
+
       {/* Защищенные роуты Админки (Nested Routes) */}
       <Route
         path="/admin"

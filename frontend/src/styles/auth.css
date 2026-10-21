@@ -234,3 +234,26 @@ body {
   font-weight: 600;
   word-break: break-all;
 }
+
+.welcome__banner {
+  border-radius: 8px;
+  padding: 16px;
+  margin: 20px 0;
+  text-align: left;
+}
+
+.welcome__banner p {
+  margin: 6px 0 12px;
+}
+
+.welcome__banner--warning {
+  background: #fff8e1;
+  border: 1px solid #f0c040;
+}
+
+.welcome__banner--success {
+  background: #e8f5e9;
+  border: 1px solid #81c784;
+  color: #2e7d32;
+  text-align: center;
+}

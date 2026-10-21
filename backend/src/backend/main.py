@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from backend.routers.admin.users import router as admin_users_router
 from backend.routers.auth.auth import router as auth_router
+from backend.routers.auth.two_factor import router as mfa_router
 
 app = FastAPI(title="Auth App")
 
@@ -16,3 +17,4 @@ app.add_middleware(
 
 app.include_router(auth_router)
 app.include_router(admin_users_router)
+app.include_router(mfa_router)
