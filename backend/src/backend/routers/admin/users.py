@@ -9,18 +9,18 @@ from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-router = APIRouter(prefix="/admin/users", tags=["admin_users"])
+router = APIRouter(prefix="/admin/users", tags=["Administration"])
 
 
 @router.post(
     "/bootstrap",
     response_model=UserRead,
     status_code=status.HTTP_201_CREATED,
-    summary="Создать первого администратора (без авторизации)",
+    summary="Create the first administrator",
     description=(
-        "Работает только пока в системе нет ни одного суперпользователя. "
-        "После создания первого админа возвращает 403 — дальше используйте "
-        "POST /admin/users/ с токеном администратора."
+        "It only works as long as there is not a single superuser in the system. "
+        "After creating the first admin, it returns 403. "
+        "Next, create users via `POST /admin/users/` with the admin token."
     ),
 )
 async def bootstrap_admin(
@@ -62,7 +62,12 @@ async def bootstrap_admin(
     return UserRead.model_validate(new_admin)
 
 
-@router.get("/", response_model=list[UserRead])
+@router.get(
+    "/",
+    response_model=list[UserRead],
+    summary="List of all users",
+    description="Returns all users. Requires superuser rights.",
+)
 async def get_all_users(
     db: Annotated[AsyncSession, Depends(get_db)],
     admin: Annotated[User, Depends(get_current_superuser)],
@@ -71,7 +76,18 @@ async def get_all_users(
     return [UserRead.model_validate(u) for u in result.scalars().all()]
 
 
-@router.post("/", response_model=UserRead, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/",
+    response_model=UserRead,
+    status_code=status.HTTP_201_CREATED,
+    summary="Create a user (on behalf of the admin)",
+    description=(
+        "Creates a new user. "
+        "If you pass `is_superuser: true`, an administrator will be created. "
+        "Requires superuser rights. "
+        "If the email is already busy, it returns 400."
+    ),
+)
 async def create_user_admin(
     user_in: UserCreate,
     db: Annotated[AsyncSession, Depends(get_db)],
@@ -85,7 +101,7 @@ async def create_user_admin(
         name=user_in.name,
         email=user_in.email,
         hashed_password=get_password_hash(user_in.password),
-        is_superuser=False,
+        is_superuser=user_in.is_superuser,
         is_active=True,
     )
     db.add(new_user)
@@ -94,7 +110,16 @@ async def create_user_admin(
     return UserRead.model_validate(new_user)
 
 
-@router.delete("/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete(
+    "/{user_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Delete user",
+    description=(
+        "Deletes the user by ID. "
+        "Requires superuser rights. "
+        "You cannot delete yourself (400) or a non-existent (404)."
+    ),
+)
 async def delete_user(
     user_id: int,
     db: Annotated[AsyncSession, Depends(get_db)],

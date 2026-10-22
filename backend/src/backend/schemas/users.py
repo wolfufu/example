@@ -18,7 +18,6 @@ class TwoFAChallengeVerifyRequest(BaseModel):
 
 class LoginResponse(BaseModel):
     access_token: str | None = None
-    token_type: str | None = None
     mfa_required: bool = False
     challenge_token: str | None = None
 
@@ -27,6 +26,7 @@ class UserCreate(BaseModel):
     name: str
     email: EmailStr
     password: str
+    is_superuser: bool = False
 
 
 class UserRead(BaseModel):
@@ -42,4 +42,3 @@ class UserRead(BaseModel):
 
 class Token(BaseModel):
     access_token: str
-    token_type: str

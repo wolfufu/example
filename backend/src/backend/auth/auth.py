@@ -33,10 +33,12 @@ def _create_token(
     token_type: str,
 ) -> str:
     to_encode = data.copy()
-    to_encode.update({
-        "exp": datetime.now(UTC) + expires_delta,
-        "type": token_type,
-    })
+    to_encode.update(
+        {
+            "exp": datetime.now(UTC) + expires_delta,
+            "type": token_type,
+        }
+    )
     return jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
 
 
@@ -57,7 +59,7 @@ def create_refresh_token(
 ) -> str:
     return _create_token(
         data,
-        expires_delta or timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS),
+        expires_delta or timedelta(minutes=settings.REFRESH_TOKEN_EXPIRE_MINUTES),
         "refresh",
     )
 
@@ -77,9 +79,16 @@ async def get_current_user(
             settings.SECRET_KEY,
             algorithms=[settings.ALGORITHM],
         )
+    except jwt.ExpiredSignatureError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token has expired",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
     except jwt.PyJWTError:
+        # Токен невалиден (подпись, формат и т.д.)
         raise credentials_exception
-    
+
     if payload.get("type") != "access":
         raise credentials_exception
 

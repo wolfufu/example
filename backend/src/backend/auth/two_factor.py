@@ -4,7 +4,6 @@ import secrets
 
 import pyotp
 import qrcode
-
 from backend.config import settings
 from backend.database.redis import redis_client
 

@@ -3,8 +3,25 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from backend.routers.admin.users import router as admin_users_router
 from backend.routers.auth.auth import router as auth_router
+from backend.routers.auth.two_factor import router as two_factor_router
 
-app = FastAPI(title="Auth App")
+app = FastAPI(
+    title="App",
+    openapi_tags=[
+        {
+            "name": "Authorization",
+            "description": "Registration, login, token refresh, logout.",
+        },
+        {
+            "name": "Authentication",
+            "description": "Two-factor authentication (TOTP): setup, verify, disable.",
+        },
+        {
+            "name": "Administration",
+            "description": "User management. Available only to superusers.",
+        },
+    ],
+)
 
 app.add_middleware(
     CORSMiddleware,
@@ -15,4 +32,5 @@ app.add_middleware(
 )
 
 app.include_router(auth_router)
+app.include_router(two_factor_router)
 app.include_router(admin_users_router)
