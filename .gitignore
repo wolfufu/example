@@ -22,7 +22,6 @@ wheels/
 .env
 .env.local
 .env.*.local
-!.env.example
 
 # Node.js
 node_modules

@@ -1,6 +1,6 @@
 services:
   db:
-    image: postgres:16-alpine
+    image: postgis/postgis:16-3.4
     environment:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
@@ -44,6 +44,8 @@ services:
       - REDIS_URL=redis://redis:6379/0
       - MFA_CHALLENGE_TTL_SECONDS=${MFA_CHALLENGE_TTL_SECONDS:-300}
       - MFA_ISSUER_NAME=${MFA_ISSUER_NAME:-MyApp}
+      # --- GDAL/GeoPandas --- 
+      - GDAL_DATA=/usr/share/gdal
     depends_on:
       db:
         condition: service_healthy
