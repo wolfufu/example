@@ -18,8 +18,7 @@ from backend.config import settings
 from backend.database.database import get_db
 from backend.models.users import User
 from backend.schemas.users import LoginResponse, Token, UserCreate, UserRead
-from fastapi import APIRouter, Cookie, Depends, HTTPException, Response, status
-from fastapi.security import OAuth2PasswordRequestForm
+from fastapi import APIRouter, Cookie, Depends, Form, HTTPException, Response, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -70,13 +69,14 @@ async def register(
 )
 async def login(
     response: Response,
-    form_data: Annotated[OAuth2PasswordRequestForm, Depends()],
+    username: Annotated[str, Form(description="User email")],
+    password: Annotated[str, Form(description="Password")],
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> LoginResponse:
-    result = await db.execute(select(User).where(User.email == form_data.username))
+    result = await db.execute(select(User).where(User.email == username))
     user = result.scalar_one_or_none()
 
-    if not user or not verify_password(form_data.password, user.hashed_password):
+    if not user or not verify_password(password, user.hashed_password):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect email or password",
